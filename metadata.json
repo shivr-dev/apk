@@ -1,0 +1,6 @@
+{
+  "name": "言叶之庭",
+  "description": "Wear OS 手表智能听写系统，采用 Material Design 风格，深度融合手写手绘画笔、双击清空、TTS 自动语音播报、左滑错题本、右滑设置菜单，完美自适应圆形及方形手表屏幕。",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
