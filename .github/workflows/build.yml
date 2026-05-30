@@ -3,12 +3,9 @@ on:
   workflow_dispatch:
 
 env:
-  # 强制使用Node24，消除警告
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-  # 自动接受所有Android SDK许可证
   ANDROID_LICENSE_ACCEPT: yes
-  # 禁用Gradle守护进程，避免CI环境内存问题
-  GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dorg.gradle.jvmargs=-Xmx4g"
+  GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dorg.gradle.jvmargs=-Xmx6g"
 
 jobs:
   build:
@@ -16,33 +13,47 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # 用官方Gradle Action，自动处理JDK和缓存
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4
+      # 1. 安装正确版本的JDK和Gradle（AGP 8.7必须用Gradle 8.9）
+      - name: Setup JDK 17
+        uses: actions/setup-java@v4
         with:
           java-version: 17
           distribution: temurin
+
+      - name: Setup Gradle 8.9
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: 8.9
           cache-write-only: false
 
-      # 最新版setup-android已原生支持Node24
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-        with:
-          # 安装你项目需要的SDK版本（根据你的build.gradle调整）
-          packages: "platforms;android-34 build-tools;34.0.0"
-          accept-android-sdk-licenses: true
-
-      # 修复gradlew执行权限（最容易被忽略的问题）
-      - name: Fix Gradle Permissions
+      # 2. 自动生成完整的Gradle Wrapper（解决你没有gradlew的问题）
+      - name: Generate Gradle Wrapper
         run: |
+          gradle wrapper --gradle-version 8.9
           chmod +x ./gradlew
           ls -la ./gradlew
 
-      # 先清理旧构建，再编译，同时打印完整错误日志
-      - name: Build 32-bit Debug APK
-        run: ./gradlew clean assembleDebug --info --stacktrace
+      # 3. 安装Android SDK 36（你的项目用的最新SDK）
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: "platforms;android-36 build-tools;36.0.0"
+          accept-android-sdk-licenses: true
 
-      # 上传APK
+      # 4. 创建Secrets插件需要的.env文件（否则会报错）
+      - name: Create .env file
+        run: touch .env
+
+      # 5. 强制生成32位APK（OPPO Watch X唯一支持的架构）
+      - name: Add 32-bit ABI filter
+        run: |
+          sed -i '/defaultConfig {/a\        ndk {\n            abiFilters.clear()\n            abiFilters += "armeabi-v7a"\n        }' app/build.gradle.kts
+
+      # 6. 构建Debug APK（用你配置好的debug签名）
+      - name: Build Debug APK
+        run: ./gradlew clean assembleDebug --stacktrace
+
+      # 7. 上传APK
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
